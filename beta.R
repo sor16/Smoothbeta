@@ -1,56 +1,4 @@
-RC=list()
 
-RC$mu_a=3.20
-RC$mu_b=2.29
-RC$sig_a=sqrt(1.21)
-RC$sig_b=sqrt(0.48)
-RC$p_ab=-0.61
-RC$mu_c=1.9000
-RC$nugget=10^-8
-
-
-RC$mu_sb=0.5
-RC$mu_pb=0.5
-RC$tau_pb2=0.25^2
-RC$s=3
-RC$v=5
-
-#wq = as.matrix(read.table('15.txt'))
-qvdata=read.table("V508.txt",skip=3,sep="|",dec=",")
-qvdata=qvdata[,c(2:4,7)]
-qvdata[,3:4]=qvdata[,4:3]
-names(qvdata)=c("Date","Time","W","Q")
-qvdata$Time=as.character(qvdata$Time)
-qvdata$Date=as.Date(gsub("\\.","-",qvdata$Date),"%d-%m-%Y")
-qvdata=qvdata[with(qvdata,order(W)),]
-wq=as.matrix(qvdata[,3:4])
-
-
-
-RC$y=rbind(as.matrix(log(wq[,2])),0)
-RC$w=as.matrix(0.01*wq[,1])
-RC$w_tild=RC$w-min(RC$w)
-# 
-H=RC$w
-Q=wq[,2]
-dat=data.frame(H,Q)
-
-###
-
-Adist1 <- Adist(RC$w)
-RC$A=Adist1$A
-RC$dist=Adist1$dist
-RC$n=Adist1$n
-RC$N=Adist1$N
-
-RC$P=diag(nrow=5,ncol=5,6)-matrix(nrow=5,ncol=5,1)
-
-RC$Sig_ab= rbind(c(RC$sig_a^2, RC$p_ab*RC$sig_a*RC$sig_b), c(RC$p_ab*RC$sig_a*RC$sig_b, RC$sig_b^2))
-
-RC$mu_x=as.matrix(c(RC$mu_a,RC$mu_b, rep(0,RC$n))) #Setja i RC
-
-RC$B=B_splines(t(RC$w_tild)/RC$w_tild[length(RC$w_tild)])
-RC$Z=cbind(t(rep(0,2)),t(rep(1,RC$n)))
 
 #t_median=t(apply(t, 1, quantile, probs = c(0.5),  na.rm = TRUE))
 #t is a 9 * 50000 matrix. MCMC for V508.txt
@@ -75,7 +23,7 @@ Sig_eps=diag(as.numeric(rbind(varr_m,0)))
 R_Beta=(1+sqrt(5)*RC$dist/exp(phi_b)+5*RC$dist^2/(3*exp(phi_b)^2))*exp(-sqrt(5)*RC$dist/exp(phi_b))+diag(1,RC$n,RC$n)*RC$nugget
 Sig_x=rbind(cbind(RC$Sig_ab,matrix(0,nrow=2,ncol=RC$n)),cbind(matrix(0,nrow=RC$n,ncol=2),exp(sig_b2)*R_Beta))
 
-X=Matrix(rbind(cbind(matrix(1,dim(l)),l,Matrix(diag(as.numeric(l)),sparse=TRUE)%*%RC$A),RC$Z),sparse=TRUE)
+X=rbind(cbind(matrix(1,dim(l)),l,diag(as.numeric(l))%*%RC$A,RC$Z))
 
 
 L=t(chol(as.matrix(X%*%Sig_x%*%t(X)+Sig_eps)))
@@ -86,3 +34,52 @@ mu=RC$mu_x-Sig_x%*%(t(X)%*%(solve(t(L),w)))
 ymu=X%*%mu
 ymu=ymu[1:RC$N]
 plot(RC$w,exp(ymu))
+
+
+v=seq(min(wq[,1]),max(wq[,1]),length.out=40)
+seq=unique(c(wq[,1],v))
+seq=sort(seq)
+seq2=c(seq[2:length(seq)],1000)
+dist=abs(seq-seq2)
+mindist=0.1
+Wsim=0.01*seq[which(dist>mindist)]
+RC$w_tildsim=as.matrix(Wsim-min(Wsim))
+RC$Bsim=B_splines(t(RC$w_tildsim)/RC$w_tildsim[length(RC$w_tildsim)])
+
+cl <- makeCluster(4)
+# Register cluster
+registerDoParallel(cl)
+#Find out how many
+MCMC <- foreach(i=1:4, .combine=cbind,.export=c("Densevalm22")) %dopar% {
+    beta_u=matrix(0,nrow=length(Wsim),ncol=Nit)
+    
+    t_old=as.matrix(t_m)
+    Dens<-Densevalmbeta(t_old,RC,Wsim)
+    p_old=Dens$p
+    ypo_old=Dens$ypo
+    
+    for(j in 1:Nit){
+        t_new=t_old+solve(t(LH),rnorm(9,0,1))
+        Densnew<-Densevalm22(t_new,RC)
+        ypo_new=Densnew$ypo
+        p_new=Densnew$p
+        logR=p_new-p_old
+        
+        if (logR>log(runif(1))){
+            t_old=t_new
+            p_old=p_new
+            ypo_old=ypo_new
+            
+        }
+        ypo[,j]=rbind(ypo_old,t_old)
+    }
+    
+    seq=seq(2000,Nit,5)
+    ypo=ypo[,seq]
+    
+    return(ypo)
+}
+quantmatrix=head(MCMC,nrow(MCMC)-9)
+t=tail(MCMC,9)
+
+
