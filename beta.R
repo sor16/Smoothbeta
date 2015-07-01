@@ -53,8 +53,10 @@ RC$B=B_splines(t(RC$w_tild)/RC$w_tild[length(RC$w_tild)])
 RC$Z=cbind(t(rep(0,2)),t(rep(1,RC$n)))
 
 #t_median=t(apply(t, 1, quantile, probs = c(0.5),  na.rm = TRUE))
-#t is a 9 * 50000 matrix. MCMC
-t_median=c(-1.630088, -2.313527, 0.4967125, -4.465228, -3.648009, -4.898924, -5.848946,-5.031323, -5.061868)
+#t is a 9 * 50000 matrix. MCMC for V508.txt
+t_median=c(-0.1391361,-2.275301, 0.4984314, -5.993821, -6.354939, -6.678067, -6.688161,-6.704671, -6.698719)
+#t is a 9 * 50000 matrix. MCMC for 15.txt
+#t_median=c(-1.630088, -2.313527, 0.4967125, -4.465228, -3.648009, -4.898924, -5.848946,-5.031323, -5.061868)
 t_m=t_median
 # t_m =Densmin$par
 # H=Densmin$hessian
