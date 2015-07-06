@@ -1,6 +1,15 @@
 library(doParallel)
 library(foreach)
 library(RCmodels)
+qvdata=read.table("V508.txt",skip=3,sep="|",dec=",")
+qvdata=qvdata[,c(2:4,7)]
+qvdata[,3:4]=qvdata[,4:3]
+names(qvdata)=c("Date","Time","W","Q")
+qvdata$Time=as.character(qvdata$Time)
+qvdata$Date=as.Date(gsub("\\.","-",qvdata$Date),"%d-%m-%Y")
+qvdata=qvdata[with(qvdata,order(W)),]
+wq=as.matrix(qvdata[,3:4])
+
 Nit=20000
 
 RC=priors("Iceland")
@@ -61,9 +70,9 @@ cl <- makeCluster(4)
 # Register cluster
 registerDoParallel(cl)
 #Find out how many
-
-MCMC <- foreach(i=1:4, .combine=cbind,.export=c("Densevalm22")) %dopar% {
-    ypo=matrix(0,nrow=nrow(wq)+9,ncol=Nit)
+ptm <- proc.time()
+MCMC <- foreach(i=1:4,.combine=cbind,.export=c("Densevalm22")) %dopar% {
+    output=matrix(0,nrow=nrow(wq)+9,ncol=Nit)
     
     t_old=as.matrix(t_m)
     Dens<-Densevalm22(t_old,RC)
@@ -83,16 +92,17 @@ MCMC <- foreach(i=1:4, .combine=cbind,.export=c("Densevalm22")) %dopar% {
             ypo_old=ypo_new
             
         }
-        ypo[,j]=rbind(ypo_old,t_old)
+        output[,j]=rbind(ypo_old,t_old)
     }
     
-    #seq=seq(2000,Nit,5)
-    #ypo=ypo[,seq]
+    seq=seq(2000,Nit,5)
+    output=output[,seq]
     
-    return(ypo)
+    return(output)
 }
 quantmatrix=head(MCMC,nrow(MCMC)-9)
 t=tail(MCMC,9)
+proc.time() - ptm
 ##########################
 #BETA_U
 ##########################
@@ -112,7 +122,7 @@ Wsim=0.01*sort(v)
 # filter=abs(seq-seq2)
 # mindist=0.1
 # Wsim=0.01*seq[which(filter>mindist)]
-# RC$w_tildsim=as.matrix(Wsim-min(Wsim))
+RC$w_tildsim=as.matrix(Wsim-min(Wsim))
 RC$Bsim=B_splines(t(RC$w_tildsim)/RC$w_tildsim[length(RC$w_tildsim)])
 
 #MCMC <- foreach(i=1:4, .combine=cbind,.export=c("Densevalmbeta")) %dopar% {
@@ -120,18 +130,27 @@ RC$Bsim=B_splines(t(RC$w_tildsim)/RC$w_tildsim[length(RC$w_tildsim)])
     seq=seq(2000,Nit,5)
     beta_u=beta_u[,seq]
 #}
-beta_u_median=apply(beta_u,1,quantile, probs = c(0.025,0.5, 0.975),na.rm=T)
+beta_u_median=t(apply(beta_u,1,quantile, probs = c(0.025,0.5, 0.975),na.rm=T))
 X=rbind(rep(1,m),l,matrix(0,m,n),diag(l))
 x=rbind(mu[1],mu[2])
 
-all_values <- function(x) {
-    if(is.null(x)) return(NULL)
-    row <- qvdata[data$id == x$id, ]
-    paste0(names(row), ": ", format(row), collapse = "<br />")
-}
+stopCluster(cl)
 
-base <- data %>% ggvis(x = ~exp(Q), y = ~W,key:= ~id) %>%
-    layer_points() %>% add_tooltip(all_values, "hover")%>%layer_lines(x= ~exp(fit),y= ~W) %>%
-    layer_lines(x= ~exp(lower),y= ~W,strokeDash:=6)%>%layer_lines(x= ~exp(upper),y= ~W,strokeDash:=6)
-base
+# all_values <- function(x) {
+#     if(is.null(x)) return(NULL)
+#     row <- qvdata[data$id == x$id, ]
+#     paste0(names(row), ": ", format(row), collapse = "<br />")
+# }
 
+
+
+
+# base <- data %>% ggvis(x = ~exp(Q), y = ~W,key:= ~id) %>%
+#     layer_points() %>% add_tooltip(all_values, "hover")%>%layer_lines(x= ~exp(fit),y= ~W) %>%
+#     layer_lines(x= ~exp(lower),y= ~W,strokeDash:=6)%>%layer_lines(x= ~exp(upper),y= ~W,strokeDash:=6)
+# base
+# 
+data=as.data.frame(t(apply(ypo,1,quantile, probs = c(0.025,0.5, 0.975),na.rm=T)))
+names(data)=c("lower","fit","upper")
+CI=ggplot(data=data,aes(W,fit))+geom_line()+geom_line(aes(W,lower),linetype="dashed")+geom_line(aes(W,upper),linetype="dashed")
+fit=ggplot(data=data,aes(W,fit))+geom_line()
