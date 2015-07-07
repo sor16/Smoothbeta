@@ -4,8 +4,8 @@ RC$null2=t(RC$null1)
 RC$mu=mu
 # dist fylki fyrir joint vigur
 Densevalmbeta <- function(param,RC,Wsim){
-x=param[1:(RC$n+2)]
-th=param[(RC$n+3):length(param)]
+th=param[1:9]
+x=param[10:length(param)]
 zeta=th[1]
 phi_b=exp(th[3])
 sig_b2=exp(th[2])

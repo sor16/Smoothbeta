@@ -107,7 +107,7 @@ MCMC <- foreach(i=1:4,.combine=cbind,.export=c("Densevalm22")) %dopar% {
 id.x=RC$n + 2
 id.ypo=RC$N
 ypo=head(MCMC,RC$N)
-param=head(MCMC,-RC$N)
+param=tail(MCMC,9+RC$n+2)
 #t=MCMC[(RC$N+1):(RC$N+9),]
 #x=tail(MCMC,RC$n+2)
 proc.time() - ptm
@@ -160,5 +160,6 @@ stopCluster(cl)
 # 
 data=as.data.frame(t(apply(ypo,1,quantile, probs = c(0.025,0.5, 0.975),na.rm=T)))
 names(data)=c("lower","fit","upper")
-CI=ggplot(data=data,aes(W,fit))+geom_line()+geom_line(aes(W,lower),linetype="dashed")+geom_line(aes(W,upper),linetype="dashed")
+data$W=Wsim
+CI=ggplot(data=data,aes(exp(fit),W))+geom_line()+geom_line(aes(exp(lower)),linetype="dashed")+geom_line(aes(exp(upper),W),linetype="dashed")+geom_point(data=qvdata,aes(Q,W))
 fit=ggplot(data=data,aes(W,fit))+geom_line()
