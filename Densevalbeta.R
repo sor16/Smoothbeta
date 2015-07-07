@@ -3,7 +3,9 @@ RC$null2=t(RC$null1)
 #need median value from the former MCMC for mu
 RC$mu=mu
 # dist fylki fyrir joint vigur
-Densevalmbeta <- function(th,RC,Wsim){ 
+Densevalmbeta <- function(param,RC,Wsim){
+x=param[1:(RC$n+2)]
+th=param[(RC$n+3):length(param)]
 zeta=th[1]
 phi_b=exp(th[3])
 sig_b2=exp(th[2])
@@ -24,24 +26,25 @@ sigma_22=sigma_all[(n+1):(m+n),(n+1):(m+n)]
 sigma_12=sigma_all[1:n,(n+1):(n+m)]
 sigma_21=sigma_all[(n+1):(n+m),1:n]
 
-mu_beta=sigma_21%*%solve(sigma_11,RC$mu[3:length(mu)])
+mu_beta=sigma_21%*%solve(sigma_11,x[3:length(x)])
 Sigma=(sigma_22-sigma_21%*%solve(sigma_11,sigma_12))
 ncols <- ncol(Sigma)
 beta_u=as.numeric(mu_beta) + rnorm(ncols) %*% chol(Sigma)
 #rbeta=mvrnorm(n=1,mu=mu_beta,Sigma=Sigma)
 #beta_u=rmvn(n=1,mu=mu_beta,Sigma=Sigma)
-sigma_eps = diag(varr)
+# sigma_eps = diag(varr)
 X=cbind(rep(1,m),l,matrix(0,m,n),diag(l))
-#Adding linear constraint
-sigma_all=rbind(cbind(RC$Sig_ab,RC$null2),cbind(RC$null1,sigma_all))
-L = t(chol(X %*% sigma_all %*% t(X) + sigma_eps))
-W = solve(L, X %*% sigma_all)
-x_u=c(RC$mu,beta_u)
+x=c(x,beta_u)
+# #Adding linear constraint
+# sigma_all=rbind(cbind(RC$Sig_ab,RC$null2),cbind(RC$null1,sigma_all))
+# L = t(chol(X %*% sigma_all %*% t(X) + sigma_eps))
+# W = solve(L, X %*% sigma_all)
+# x_u=c(RC$mu,beta_u)
 #sss = (X %*% x_u) - RC$y + rbind(sqrt(varr) * as.matrix(rnorm(RC$N)), 0)
 #x = as.matrix(x_u - t(W) %*% solve(L, sss))
 #yp = X %*% x
 #yp = yp[1:RC$N, ]
-ypo = X%*%x_u + as.matrix(rnorm(m)) * sqrt(varr)
+ypo = X%*%x + as.matrix(rnorm(m)) * sqrt(varr)
 return(ypo)
 }
 

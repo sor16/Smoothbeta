@@ -72,16 +72,18 @@ registerDoParallel(cl)
 #Find out how many
 ptm <- proc.time()
 MCMC <- foreach(i=1:4,.combine=cbind,.export=c("Densevalm22")) %dopar% {
-    output=matrix(0,nrow=nrow(wq)+9,ncol=Nit)
+    output=matrix(0,nrow=RC$N+RC$n+2+9,ncol=Nit)
     
     t_old=as.matrix(t_m)
     Dens<-Densevalm22(t_old,RC)
     p_old=Dens$p
     ypo_old=Dens$ypo
+    x_old=Dens$x
     
     for(j in 1:Nit){
         t_new=t_old+solve(t(LH),rnorm(9,0,1))
         Densnew<-Densevalm22(t_new,RC)
+        x_new=Densnew$x
         ypo_new=Densnew$ypo
         p_new=Densnew$p
         logR=p_new-p_old
@@ -90,9 +92,11 @@ MCMC <- foreach(i=1:4,.combine=cbind,.export=c("Densevalm22")) %dopar% {
             t_old=t_new
             p_old=p_new
             ypo_old=ypo_new
+            x_old=x_new
+            
             
         }
-        output[,j]=rbind(ypo_old,t_old)
+        output[,j]=rbind(ypo_old,t_old,x_old)
     }
     
     seq=seq(2000,Nit,5)
@@ -100,8 +104,12 @@ MCMC <- foreach(i=1:4,.combine=cbind,.export=c("Densevalm22")) %dopar% {
     
     return(output)
 }
-quantmatrix=head(MCMC,nrow(MCMC)-9)
-t=tail(MCMC,9)
+id.x=RC$n + 2
+id.ypo=RC$N
+ypo=head(MCMC,RC$N)
+param=head(MCMC,-RC$N)
+#t=MCMC[(RC$N+1):(RC$N+9),]
+#x=tail(MCMC,RC$n+2)
 proc.time() - ptm
 ##########################
 #BETA_U
