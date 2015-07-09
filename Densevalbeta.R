@@ -45,7 +45,7 @@ x=c(x,beta_u)
 #yp = X %*% x
 #yp = yp[1:RC$N, ]
 ypo = X%*%x + as.matrix(rnorm(m)) * sqrt(varr)
-return(beta_u)
+return(ypo)
 }
 
 

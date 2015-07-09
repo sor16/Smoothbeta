@@ -71,9 +71,9 @@ cl <- makeCluster(4)
 registerDoParallel(cl)
 #Find out how many
 ptm <- proc.time()
-MCMC <- foreach(i=1:4,.combine=cbind,.export=c("Densevalm22")) %dopar% {
-    output=matrix(0,nrow=RC$N+RC$n+2+9,ncol=Nit)
-    
+MCMC <- foreach(i=1:4,.combine=cbind,.export=c("Densevalm22","Densevalmbeta")) %dopar% {
+    ypo=matrix(0,nrow=RC$N,ncol=Nit)
+    param=matrix(0,nrow=9+RC$n+2,ncol=Nit)
     t_old=as.matrix(t_m)
     Dens<-Densevalm22(t_old,RC)
     p_old=Dens$p
@@ -96,28 +96,33 @@ MCMC <- foreach(i=1:4,.combine=cbind,.export=c("Densevalm22")) %dopar% {
             
             
         }
-        output[,j]=rbind(ypo_old,t_old,x_old)
+        ypo[,j]=ypo_old
+        param[,j]=rbind(t_old,x_old)    
     }
-    
+    v=seq(round(exp(zeta),2),max(wq[,1]),0.01)
+    Wsim=c(wq[,1],v)
+    RC$w_tildsim=as.matrix(Wsim-min(Wsim))
+    RC$Bsim=B_splines(t(RC$w_tildsim)/RC$w_tildsim[length(RC$w_tildsim)])
     seq=seq(2000,Nit,5)
-    output=output[,seq]
+    ypo=ypo[,seq]
+    param=param[,seq]
+    ypo_u=apply(param,2,FUN=function(x) Densevalmbeta(x,RC,Wsim=Wsim))
+    output=rbind(ypo,ypo_u)
     
     return(output)
 }
+proc.time() - ptm
 id.x=RC$n + 2
 id.ypo=RC$N
 ypo=head(MCMC,RC$N)
 param=tail(MCMC,9+RC$n+2)
 #t=MCMC[(RC$N+1):(RC$N+9),]
 #x=tail(MCMC,RC$n+2)
-proc.time() - ptm
+
 ##########################
 #BETA_U
 ##########################
-size_grid=50
-v=seq(min(wq[,1]),max(wq[,1]),length.out=size_grid)
-#seq=unique(c(wq[,1],v))
-Wsim=0.01*sort(v)
+
 #seq2=c(seq[2:length(seq)],1000)
 #filter=abs(seq-seq2)
 #mindist=0.1
@@ -133,8 +138,8 @@ Wsim=0.01*sort(v)
 RC$w_tildsim=as.matrix(Wsim-min(Wsim))
 RC$Bsim=B_splines(t(RC$w_tildsim)/RC$w_tildsim[length(RC$w_tildsim)])
 
-#MCMC <- foreach(i=1:4, .combine=cbind,.export=c("Densevalmbeta")) %dopar% {
-    beta_u=apply(t,2,FUN=function(x) Densevalmbeta(x,RC,Wsim=Wsim))
+#MCMC <- foreach(i=1:4, .combine=cbind,.export=c("Densevalmbeta","")) %dopar% {
+
     seq=seq(2000,Nit,5)
     beta_u=beta_u[,seq]
 #}
@@ -158,8 +163,8 @@ stopCluster(cl)
 #     layer_lines(x= ~exp(lower),y= ~W,strokeDash:=6)%>%layer_lines(x= ~exp(upper),y= ~W,strokeDash:=6)
 # base
 # 
-data=as.data.frame(t(apply(ypo,1,quantile, probs = c(0.025,0.5, 0.975),na.rm=T)))
+data=as.data.frame(t(apply(beta_u,1,quantile, probs = c(0.025,0.5, 0.975),na.rm=T)))
 names(data)=c("lower","fit","upper")
-data$W=Wsim
+data$W=wq[,1]
 CI=ggplot(data=data,aes(exp(fit),W))+geom_line()+geom_line(aes(exp(lower)),linetype="dashed")+geom_line(aes(exp(upper),W),linetype="dashed")+geom_point(data=qvdata,aes(Q,W))
 fit=ggplot(data=data,aes(W,fit))+geom_line()
