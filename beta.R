@@ -115,7 +115,7 @@ MCMC <- foreach(i=1:4,.combine=cbind,.export=c("Densevalm22","Densevalm22_u")) %
     ypo=ypo[,seq]
     param=param[,seq]
     ypo_u=apply(param,2,FUN=function(x) Densevalm22_u(x,RC,Wsim=Wsim))
-    output=rbind(ypo)
+    output=rbind(ypo,ypo_u)
     
     return(output)
 }
@@ -173,7 +173,7 @@ stopCluster(cl)
 # 
 
 data=as.data.frame(t(apply(MCMC,1,quantile, probs = c(0.025,0.5, 0.975),na.rm=T)))
-names(data)=("lower","fit","upper")
+names(data)=c("lower","fit","upper")
 data$W=c(RC$w,Wsim)
 data=data[with(data,order(W)),]
 CI=ggplot(data=data)+geom_line(aes(exp(fit),W))+geom_line(aes(exp(lower),W),linetype="dashed")+geom_line(aes(exp(upper),W),linetype="dashed")+geom_point(data=qvdata,aes(Q,W))
