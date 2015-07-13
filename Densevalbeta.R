@@ -1,8 +1,3 @@
-RC$null1=matrix(0,nrow=length(Wsim)+RC$n,ncol=2)
-RC$null2=t(RC$null1)
-#need median value from the former MCMC for mu
-RC$mu=mu
-# dist fylki fyrir joint vigur
 Densevalmbeta <- function(param,RC,Wsim){
 th=param[1:9]
 x=param[10:length(param)]
@@ -11,8 +6,7 @@ phi_b=exp(th[3])
 sig_b2=exp(th[2])
 lambda = th[4:9]
 varr = c(exp(RC$Bsim %*% lambda))
-
-c=min(Wsim)-exp(zeta)
+c=min(RC$O)-exp(zeta)
 l=log(Wsim-c)
 m=length(Wsim)
 n=RC$n

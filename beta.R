@@ -1,6 +1,7 @@
 library(doParallel)
 library(foreach)
 library(RCmodels)
+library(ggplot2)
 qvdata=read.table("V508.txt",skip=3,sep="|",dec=",")
 qvdata=qvdata[,c(2:4,7)]
 qvdata[,3:4]=qvdata[,4:3]
@@ -72,10 +73,17 @@ registerDoParallel(cl)
 #Find out how many
 v=seq(min(wq[,1]),max(wq[,1]),1)
 Wsim=0.01*v
+# w=RC$O*100
+# distvect=abs(w-c(w[2:length(w)],1000))
+# rangedist=rbind(w,distvect,c(w[2:length(w)],1000))
+# distmax=rangedist[,distvect>4]
+# distmax=distmax[,-ncol(distmax)]
+# Wsim=0.01*unlist(apply(distmax,2,FUN=function(x){setdiff(seq(x[1],x[3],length.out=round(x[2])/2),c(x[1],x[3]))
+# }))
 RC$w_tildsim=as.matrix(Wsim-min(Wsim))
 RC$Bsim=B_splines(t(RC$w_tildsim)/RC$w_tildsim[length(RC$w_tildsim)])
 ptm <- proc.time()
-MCMC <- foreach(i=1:4,.combine=cbind,.export=c("Densevalm22","Densevalmbeta")) %dopar% {
+MCMC <- foreach(i=1:4,.combine=cbind,.export=c("Densevalm22","Densevalm22_u")) %dopar% {
     ypo=matrix(0,nrow=RC$N,ncol=Nit)
     param=matrix(0,nrow=9+RC$n+2,ncol=Nit)
     t_old=as.matrix(t_m)
@@ -106,8 +114,8 @@ MCMC <- foreach(i=1:4,.combine=cbind,.export=c("Densevalm22","Densevalmbeta")) %
     seq=seq(2000,Nit,5)
     ypo=ypo[,seq]
     param=param[,seq]
-    ypo_u=apply(param,2,FUN=function(x) Densevalmbeta(x,RC,Wsim=Wsim))
-    output=rbind(ypo,ypo_u)
+    ypo_u=apply(param,2,FUN=function(x) Densevalm22_u(x,RC,Wsim=Wsim))
+    output=rbind(ypo)
     
     return(output)
 }
@@ -163,8 +171,10 @@ stopCluster(cl)
 #     layer_lines(x= ~exp(lower),y= ~W,strokeDash:=6)%>%layer_lines(x= ~exp(upper),y= ~W,strokeDash:=6)
 # base
 # 
-data=as.data.frame(t(apply(beta_u,1,quantile, probs = c(0.025,0.5, 0.975),na.rm=T)))
-names(data)=c("lower","fit","upper")
-data$W=wq[,1]
-CI=ggplot(data=data,aes(exp(fit),W))+geom_line()+geom_line(aes(exp(lower)),linetype="dashed")+geom_line(aes(exp(upper),W),linetype="dashed")+geom_point(data=qvdata,aes(Q,W))
+
+data=as.data.frame(t(apply(MCMC,1,quantile, probs = c(0.025,0.5, 0.975),na.rm=T)))
+names(data)=("lower","fit","upper")
+data$W=c(RC$w,Wsim)
+data=data[with(data,order(W)),]
+CI=ggplot(data=data)+geom_line(aes(exp(fit),W))+geom_line(aes(exp(lower),W),linetype="dashed")+geom_line(aes(exp(upper),W),linetype="dashed")+geom_point(data=qvdata,aes(Q,W))
 fit=ggplot(data=data,aes(W,fit))+geom_line()
