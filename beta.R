@@ -70,6 +70,10 @@ cl <- makeCluster(4)
 # Register cluster
 registerDoParallel(cl)
 #Find out how many
+v=seq(min(wq[,1]),max(wq[,1]),1)
+Wsim=0.01*v
+RC$w_tildsim=as.matrix(Wsim-min(Wsim))
+RC$Bsim=B_splines(t(RC$w_tildsim)/RC$w_tildsim[length(RC$w_tildsim)])
 ptm <- proc.time()
 MCMC <- foreach(i=1:4,.combine=cbind,.export=c("Densevalm22","Densevalmbeta")) %dopar% {
     ypo=matrix(0,nrow=RC$N,ncol=Nit)
@@ -99,10 +103,6 @@ MCMC <- foreach(i=1:4,.combine=cbind,.export=c("Densevalm22","Densevalmbeta")) %
         ypo[,j]=ypo_old
         param[,j]=rbind(t_old,x_old)    
     }
-    v=seq(round(exp(zeta),2),max(wq[,1]),0.01)
-    Wsim=c(wq[,1],v)
-    RC$w_tildsim=as.matrix(Wsim-min(Wsim))
-    RC$Bsim=B_splines(t(RC$w_tildsim)/RC$w_tildsim[length(RC$w_tildsim)])
     seq=seq(2000,Nit,5)
     ypo=ypo[,seq]
     param=param[,seq]
