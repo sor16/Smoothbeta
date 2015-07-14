@@ -2,7 +2,7 @@ library(doParallel)
 library(foreach)
 library(RCmodels)
 library(ggplot2)
-qvdata=read.table("V508.txt",skip=3,sep="|",dec=",")
+qvdata=read.table("V316.txt",skip=3,sep="|",dec=",")
 qvdata=qvdata[,c(2:4,7)]
 qvdata[,3:4]=qvdata[,4:3]
 names(qvdata)=c("Date","Time","W","Q")
@@ -10,6 +10,7 @@ qvdata$Time=as.character(qvdata$Time)
 qvdata$Date=as.Date(gsub("\\.","-",qvdata$Date),"%d-%m-%Y")
 qvdata=qvdata[with(qvdata,order(W)),]
 wq=as.matrix(qvdata[,3:4])
+qvdata$W=0.01*qvdata$W
 
 Nit=20000
 
@@ -68,20 +69,12 @@ mu=RC$mu_x-Sig_x%*%(t(X)%*%(solve(t(L),w)))
 LH=t(chol(H))/0.8
 
 cl <- makeCluster(4)
-# Register cluster
 registerDoParallel(cl)
-#Find out how many
-v=seq(min(wq[,1]),max(wq[,1]),1)
-Wsim=0.01*v
-# w=RC$O*100
-# distvect=abs(w-c(w[2:length(w)],1000))
-# rangedist=rbind(w,distvect,c(w[2:length(w)],1000))
-# distmax=rangedist[,distvect>4]
-# distmax=distmax[,-ncol(distmax)]
-# Wsim=0.01*unlist(apply(distmax,2,FUN=function(x){setdiff(seq(x[1],x[3],length.out=round(x[2])/2),c(x[1],x[3]))
-# }))
-RC$w_tildsim=as.matrix(Wsim-min(Wsim))
-RC$Bsim=B_splines(t(RC$w_tildsim)/RC$w_tildsim[length(RC$w_tildsim)])
+WFill=W_unobserved(RC$O,min=min(RC$O)-exp(t_m[1]),max=2.0)
+RC$W_u=WFill$W_u
+RC$W_u_tild=WFill$W_u_tild
+RC$Bsim=B_splines(t(RC$W_u_tild)/RC$W_u_tild[length(RC$W_u_tild)])
+
 ptm <- proc.time()
 MCMC <- foreach(i=1:4,.combine=cbind,.export=c("Densevalm22","Densevalm22_u")) %dopar% {
     ypo=matrix(0,nrow=RC$N,ncol=Nit)
@@ -114,67 +107,19 @@ MCMC <- foreach(i=1:4,.combine=cbind,.export=c("Densevalm22","Densevalm22_u")) %
     seq=seq(2000,Nit,5)
     ypo=ypo[,seq]
     param=param[,seq]
-    ypo_u=apply(param,2,FUN=function(x) Densevalm22_u(x,RC,Wsim=Wsim))
+    ypo_u=apply(param,2,FUN=function(x) Densevalm22_u(x,RC))
     output=rbind(ypo,ypo_u)
     
     return(output)
 }
 proc.time() - ptm
-id.x=RC$n + 2
-id.ypo=RC$N
-ypo=head(MCMC,RC$N)
-param=tail(MCMC,9+RC$n+2)
-#t=MCMC[(RC$N+1):(RC$N+9),]
-#x=tail(MCMC,RC$n+2)
-
-##########################
-#BETA_U
-##########################
-
-#seq2=c(seq[2:length(seq)],1000)
-#filter=abs(seq-seq2)
-#mindist=0.1
-#Wsim=0.01*seq[which(filter>mindist)]
-#RC$w_tildsim=as.matrix(Wsim-min(Wsim))
-# v=seq(min(wq[,1]),max(wq[,1]),length.out=size_grid)
-# seq=unique(c(wq[,1],v))
-# seq=sort(seq)
-# seq2=c(seq[2:length(seq)],1000)
-# filter=abs(seq-seq2)
-# mindist=0.1
-# Wsim=0.01*seq[which(filter>mindist)]
-RC$w_tildsim=as.matrix(Wsim-min(Wsim))
-RC$Bsim=B_splines(t(RC$w_tildsim)/RC$w_tildsim[length(RC$w_tildsim)])
-
-#MCMC <- foreach(i=1:4, .combine=cbind,.export=c("Densevalmbeta","")) %dopar% {
-
-    seq=seq(2000,Nit,5)
-    beta_u=beta_u[,seq]
-#}
-beta_u_median=t(apply(beta_u,1,quantile, probs = c(0.025,0.5, 0.975),na.rm=T))
-X=rbind(rep(1,m),l,matrix(0,m,n),diag(l))
-x=rbind(mu[1],mu[2])
-
 stopCluster(cl)
-
-# all_values <- function(x) {
-#     if(is.null(x)) return(NULL)
-#     row <- qvdata[data$id == x$id, ]
-#     paste0(names(row), ": ", format(row), collapse = "<br />")
-# }
-
-
-
-
-# base <- data %>% ggvis(x = ~exp(Q), y = ~W,key:= ~id) %>%
-#     layer_points() %>% add_tooltip(all_values, "hover")%>%layer_lines(x= ~exp(fit),y= ~W) %>%
-#     layer_lines(x= ~exp(lower),y= ~W,strokeDash:=6)%>%layer_lines(x= ~exp(upper),y= ~W,strokeDash:=6)
-# base
-# 
 
 data=as.data.frame(t(apply(MCMC,1,quantile, probs = c(0.025,0.5, 0.975),na.rm=T)))
 names(data)=c("lower","fit","upper")
-data$W=c(RC$w,Wsim)
+data$W=c(RC$w,RC$W_u)
 data=data[with(data,order(W)),]
-CI=ggplot(data=data)+geom_line(aes(exp(fit),W))+geom_line(aes(exp(lower),W),linetype="dashed")+geom_line(aes(exp(upper),W),linetype="dashed")+geom_point(data=qvdata,aes(Q,W))
-fit=ggplot(data=data,aes(W,fit))+geom_line()
+rcrealsmooth=ggplot(data=data)+geom_line(aes(exp(fit),W))+geom_line(aes(exp(lower),W),linetype="dashed")+geom_line(aes(exp(upper),W),linetype="dashed")+geom_point(data=qvdata,aes(Q,W))
+xout=seq(round(min(RC$O)-exp(t_m[1])),2.0,by=0.01)
+table=approx(data$W,data$fit,xout=xout)
+table=t(as.data.frame(split(table$y, ceiling(seq_along(table$y)/10))))
