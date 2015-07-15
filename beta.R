@@ -27,7 +27,7 @@ RC$y=rbind(as.matrix(log(wq[,2])),0)
 RC$w=as.matrix(0.01*wq[,1])
 RC$w_tild=RC$w-min(RC$w)
 
-Adist1 <- Adist(sort(RC$w))
+Adist1 <- Adist(RC$w)
 RC$A=Adist1$A
 RC$dist=Adist1$dist
 RC$n=Adist1$n
@@ -70,14 +70,14 @@ LH=t(chol(H))/0.8
 
 cl <- makeCluster(4)
 registerDoParallel(cl)
-WFill=W_unobserved(RC$O,min=min(RC$O)-exp(t_m[1]),max=2.0)
+WFill=W_unobserved(RC$O,min=ceiling((min(RC$O)-exp(t_m[1]))*10)/10,max=4)
 RC$W_u=WFill$W_u
 RC$W_u_tild=WFill$W_u_tild
 RC$Bsim=B_splines(t(RC$W_u_tild)/RC$W_u_tild[length(RC$W_u_tild)])
 
 ptm <- proc.time()
 MCMC <- foreach(i=1:4,.combine=cbind,.export=c("Densevalm22","Densevalm22_u")) %dopar% {
-    ypo=matrix(0,nrow=RC$N,ncol=Nit)
+    ypo_obs=matrix(0,nrow=RC$N,ncol=Nit)
     param=matrix(0,nrow=9+RC$n+2,ncol=Nit)
     t_old=as.matrix(t_m)
     Dens<-Densevalm22(t_old,RC)
@@ -101,25 +101,46 @@ MCMC <- foreach(i=1:4,.combine=cbind,.export=c("Densevalm22","Densevalm22_u")) %
             
             
         }
-        ypo[,j]=ypo_old
+        ypo_obs[,j]=ypo_old
         param[,j]=rbind(t_old,x_old)    
     }
     seq=seq(2000,Nit,5)
-    ypo=ypo[,seq]
+    ypo_obs=ypo_obs[,seq]
     param=param[,seq]
-    ypo_u=apply(param,2,FUN=function(x) Densevalm22_u(x,RC))
-    output=rbind(ypo,ypo_u)
+    unobserved=apply(param,2,FUN=function(x) Densevalm22_u(x,RC))
+    #x_obs=param[10:nrow(param),]
+    output=rbind(ypo_obs,unobserved)
     
     return(output)
 }
 proc.time() - ptm
 stopCluster(cl)
 
-data=as.data.frame(t(apply(MCMC,1,quantile, probs = c(0.025,0.5, 0.975),na.rm=T)))
-names(data)=c("lower","fit","upper")
-data$W=c(RC$w,RC$W_u)
-data=data[with(data,order(W)),]
-rcrealsmooth=ggplot(data=data)+geom_line(aes(exp(fit),W))+geom_line(aes(exp(lower),W),linetype="dashed")+geom_line(aes(exp(upper),W),linetype="dashed")+geom_point(data=qvdata,aes(Q,W))
-xout=seq(round(min(RC$O)-exp(t_m[1])),2.0,by=0.01)
-table=approx(data$W,data$fit,xout=xout)
-table=t(as.data.frame(split(table$y, ceiling(seq_along(table$y)/10))))
+ptm <- proc.time()
+betasamples=apply(MCMC[(RC$N+length(RC$W_u)+1):nrow(MCMC),],2,FUN=function(x){x[2]+x[3:length(x)]})
+yposamples=MCMC[1:(RC$N+length(RC$W_u)),]
+ypodata=as.data.frame(t(apply(yposamples,1,quantile, probs = c(0.025,0.5, 0.975),na.rm=T)))
+names(ypodata)=c("lower","fit","upper")
+ypodata$W=c(RC$w,RC$W_u)
+ypodata=ypodata[with(ypodata,order(W)),]
+betadata=as.data.frame(t(apply(betasamples,1,quantile, probs = c(0.025,0.5, 0.975),na.rm=T)))
+names(betadata)=c("lower","fit","upper")
+betadata$W=c(RC$O,RC$W_u)
+betadata=betadata[with(betadata,order(W)),]
+
+
+
+smoothbeta=ggplot(data=betadata)+geom_line(aes(W,fit))+geom_line(aes(W,lower),linetype="dashed")+geom_line(aes(W,upper),linetype="dashed")
+
+rcrealsmooth=ggplot(data=ypodata)+geom_line(aes(exp(fit),W))+geom_line(aes(exp(lower),W),linetype="dashed")+geom_line(aes(exp(upper),W),linetype="dashed")+geom_point(data=qvdata,aes(Q,W))
+xout=seq(round(min(RC$O)-exp(t_m[1]),1),3.99,by=0.01)
+interpol=approx(ypodata$W,ypodata$fit,xout=xout)
+if(length(interpol$x)%%10==0) {
+    table=t(as.data.frame(split(x=interpol$y, f=ceiling(seq_along(interpol$y)/10))))
+    rownames(table)=seq(min(interpol$x),floor(max(interpol$x)*10)/10,by=0.1)*100
+    colnames(table)=0:9
+    table=exp(table)
+}else  {
+    stop("sequence has to be of length that adds up to 10")
+}
+proc.time()-ptm
