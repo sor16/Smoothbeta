@@ -70,7 +70,7 @@ LH=t(chol(H))/0.8
 
 cl <- makeCluster(4)
 registerDoParallel(cl)
-WFill=W_unobserved(RC$O,min=ceiling((min(RC$O)-exp(t_m[1]))*10)/10,max=4)
+WFill=W_unobserved(RC$O,min=ceiling((min(RC$O)-exp(t_m[1]))*10)/10,max=ceiling(max(RC$O)*10)/10)
 RC$W_u=WFill$W_u
 RC$W_u_tild=WFill$W_u_tild
 RC$Bsim=B_splines(t(RC$W_u_tild)/RC$W_u_tild[length(RC$W_u_tild)])
@@ -133,11 +133,11 @@ betadata=betadata[with(betadata,order(W)),]
 smoothbeta=ggplot(data=betadata)+geom_line(aes(W,fit))+geom_line(aes(W,lower),linetype="dashed")+geom_line(aes(W,upper),linetype="dashed")
 
 rcrealsmooth=ggplot(data=ypodata)+geom_line(aes(exp(fit),W))+geom_line(aes(exp(lower),W),linetype="dashed")+geom_line(aes(exp(upper),W),linetype="dashed")+geom_point(data=qvdata,aes(Q,W))
-xout=seq(round(min(RC$O)-exp(t_m[1]),1),3.99,by=0.01)
+xout=seq(ceiling((min(RC$O)-exp(t_m[1]))*10)/10,ceiling(max(RC$O)*10)/10-0.01,by=0.01)
 interpol=approx(ypodata$W,ypodata$fit,xout=xout)
 if(length(interpol$x)%%10==0) {
     table=t(as.data.frame(split(x=interpol$y, f=ceiling(seq_along(interpol$y)/10))))
-    rownames(table)=seq(min(interpol$x),floor(max(interpol$x)*10)/10,by=0.1)*100
+    rownames(table)=seq(min(interpol$x),max(interpol$x),by=0.1)*100
     colnames(table)=0:9
     table=exp(table)
 }else  {
