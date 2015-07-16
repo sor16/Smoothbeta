@@ -46,7 +46,7 @@ RC$m2=matrix(0,nrow=RC$n,ncol=2)
 theta.init=rep(0,9)
 
 Dens = function(th) {-Densevalm22(th,RC)$p}
-Densmin=optim(par=theta.init,Dens,method="BFGS",hessian=TRUE)
+Densmin=optim(par=theta.init,Dens,method="L-BFGS-B",hessian=TRUE)
 t_m =Densmin$par
 H=Densmin$hessian
 phi_b=t_m[3]
